@@ -1118,11 +1118,12 @@ sofia_profile_t *sofia_glue_find_profile__(const char *file, const char *func, i
 switch_status_t sofia_glue_profile_rdlock__(const char *file, const char *func, int line, sofia_profile_t *profile);
 
 switch_status_t sofia_reg_add_gateway(sofia_profile_t *profile, const char *key, sofia_gateway_t *gateway);
-sofia_gateway_t *sofia_reg_find_gateway__(const char *file, const char *func, int line, const char *key);
-#define sofia_reg_find_gateway(x) sofia_reg_find_gateway__(__FILE__, __SWITCH_FUNC__, __LINE__,  x)
+sofia_gateway_t *sofia_reg_find_gateway__(const char *file, const char *func, int line, const char *profile_name, const char *key);
+#define sofia_reg_find_gateway(x, y) sofia_reg_find_gateway__(__FILE__, __SWITCH_FUNC__, __LINE__,  x, y)
+#define sofia_reg_find_fullgateway(x) sofia_reg_find_gateway__(__FILE__, __SWITCH_FUNC__, __LINE__, NULL , x)
 
-sofia_gateway_t *sofia_reg_find_gateway_by_realm__(const char *file, const char *func, int line, const char *key);
-#define sofia_reg_find_gateway_by_realm(x) sofia_reg_find_gateway_by_realm__(__FILE__, __SWITCH_FUNC__, __LINE__,  x)
+sofia_gateway_t *sofia_reg_find_gateway_by_realm__(const char *file, const char *func, int line, const char *profile_name, const char *key);
+#define sofia_reg_find_gateway_by_realm(x, y) sofia_reg_find_gateway_by_realm__(__FILE__, __SWITCH_FUNC__, __LINE__,  x, y)
 
 sofia_gateway_subscription_t *sofia_find_gateway_subscription(sofia_gateway_t *gateway_ptr, const char *event);
 

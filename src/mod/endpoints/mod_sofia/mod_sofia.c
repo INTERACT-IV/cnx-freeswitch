@@ -423,7 +423,7 @@ switch_status_t sofia_on_hangup(switch_core_session_t *session)
 	sofia_gateway_t *gateway_ptr = NULL;
 
 	if ((gateway_name = switch_channel_get_variable(channel, "sip_gateway_name"))) {
-		gateway_ptr = sofia_reg_find_gateway(gateway_name);
+		gateway_ptr = sofia_reg_find_gateway(tech_pvt->profile->name,gateway_name);
 	}
 
 	if (!tech_pvt) {
@@ -2955,7 +2955,7 @@ static switch_status_t cmd_status(char **argv, int argc, switch_stream_handle_t 
 		}
 
 		if (!strcasecmp(argv[0], "gateway")) {
-			if ((gp = sofia_reg_find_gateway(argv[1]))) {
+			if ((gp = sofia_reg_find_fullgateway(argv[1]))) {
 				switch_assert(gp->state < REG_STATE_LAST);
 
 				stream->write_function(stream, "%s\n", line);
@@ -3282,7 +3282,7 @@ static switch_status_t cmd_xml_status(char **argv, int argc, switch_stream_handl
 			switch_mutex_unlock(mod_sofia_globals.hash_mutex);
 			stream->write_function(stream, "</gateways>\n");
 		} else if (!strcasecmp(argv[0], "gateway")) {
-			if ((gp = sofia_reg_find_gateway(argv[1]))) {
+			if ((gp = sofia_reg_find_fullgateway(argv[1]))) {
 				switch_assert(gp->state < REG_STATE_LAST);
 				stream->write_function(stream, "%s\n", header);
 				xml_gateway_status(gp, stream);
@@ -3556,7 +3556,7 @@ static switch_status_t cmd_profile(char **argv, int argc, switch_stream_handle_t
 			sofia_glue_del_every_gateway(profile);
 			stream->write_function(stream, "+OK every gateway marked for deletion.\n");
 		} else {
-			if ((gateway_ptr = sofia_reg_find_gateway(argv[2]))) {
+			if ((gateway_ptr = sofia_reg_find_gateway(profile_name, argv[2]))) {
 				sofia_glue_del_gateway(gateway_ptr);
 				sofia_reg_release_gateway(gateway_ptr);
 				stream->write_function(stream, "+OK gateway marked for deletion.\n");
@@ -3669,7 +3669,7 @@ static switch_status_t cmd_profile(char **argv, int argc, switch_stream_handle_t
 				}
 			}
 			stream->write_function(stream, "+OK\n");
-		} else if ((gateway_ptr = sofia_reg_find_gateway(gname))) {
+		} else if ((gateway_ptr = sofia_reg_find_gateway(profile->name, gname))) {
 				if (gateway_ptr->state != REG_STATE_NOREG) {
 					gateway_ptr->retry = 0;
 					gateway_ptr->state = REG_STATE_UNREGED;
@@ -3702,7 +3702,7 @@ static switch_status_t cmd_profile(char **argv, int argc, switch_stream_handle_t
 				}
 			}
 			stream->write_function(stream, "+OK\n");
-		} else if ((gateway_ptr = sofia_reg_find_gateway(gname))) {
+		} else if ((gateway_ptr = sofia_reg_find_gateway(profile->name, gname))) {
 			if (gateway_ptr->state != REG_STATE_NOREG) {
 				gateway_ptr->retry = 0;
 				gateway_ptr->state = REG_STATE_UNREGISTER;
@@ -4402,7 +4402,7 @@ SWITCH_STANDARD_API(sofia_gateway_data_function)
 		goto end;
 	}
 
-	if (!(gateway = sofia_reg_find_gateway(gwname))) {
+	if (!(gateway = sofia_reg_find_fullgateway(gwname))) {
 		goto end;
 	}
 
@@ -4790,7 +4790,7 @@ static switch_call_cause_t sofia_outgoing_channel(switch_core_session_t *session
 
 		*dest++ = '\0';
 
-		if (!(gateway_ptr = sofia_reg_find_gateway(gw)) || !gateway_ptr->profile) {
+		if (!(gateway_ptr = sofia_reg_find_fullgateway(gw)) || !gateway_ptr->profile) {
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Invalid Gateway \'%s\'\n", gw);
 			cause = SWITCH_CAUSE_INVALID_GATEWAY;
 			goto error;

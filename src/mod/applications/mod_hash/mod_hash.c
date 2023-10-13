@@ -37,6 +37,7 @@
 #include "esl.h"
 
 #define LIMIT_HASH_CLEANUP_INTERVAL 900
+#define LIMIT_HASH_SEP '#'
 
 SWITCH_MODULE_LOAD_FUNCTION(mod_hash_load);
 SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_hash_shutdown);
@@ -137,7 +138,7 @@ SWITCH_LIMIT_INCR(limit_incr_hash)
 	uint8_t increment = 1;
 	limit_hash_item_t remote_usage;
 
-	hashkey = switch_core_session_sprintf(session, "%s_%s", realm, resource);
+	hashkey = switch_core_session_sprintf(session, "%s%c%s", realm, LIMIT_HASH_SEP, resource);
 
 	switch_thread_rwlock_wrlock(globals.limit_hash_rwlock);
 	/* Check if that realm+resource has ever been checked */
@@ -285,12 +286,23 @@ SWITCH_LIMIT_RELEASE(limit_release_hash)
 			void *val = NULL;
 			const void *key;
 			switch_ssize_t keylen;
+			char *realm_and_resource = NULL;
+			char *sep = NULL;
 
 			switch_core_hash_this(hi, &key, &keylen, &val);
 
 			item = (limit_hash_item_t *) val;
 			item->total_usage--;
+			realm_and_resource = switch_safe_strdup(key);
+			sep = switch_strchr_strict(realm_and_resource,LIMIT_HASH_SEP,NULL);
+
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Usage for %s is now %d\n", (const char *) key, item->total_usage);
+			if(sep!=NULL){	
+                sep[0]='\0';
+				switch_limit_fire_event("hash", realm_and_resource, sep+1, item->total_usage, item->rate_usage, 0, 0);
+				sep[0]=LIMIT_HASH_SEP;
+			}
+			switch_safe_free(realm_and_resource);
 
 			if (item->total_usage == 0 && item->rate_usage == 0) {
 				/* Noone is using this item anymore */
@@ -302,11 +314,12 @@ SWITCH_LIMIT_RELEASE(limit_release_hash)
 		}
 		switch_core_hash_destroy(&pvt->hash);
 	} else {
-		char *hashkey = switch_core_session_sprintf(session, "%s_%s", realm, resource);
+		char *hashkey = switch_core_session_sprintf(session, "%s%c%s", realm, LIMIT_HASH_SEP, resource);
 
 		if ((item = (limit_hash_item_t *) switch_core_hash_find(pvt->hash, hashkey))) {
 			item->total_usage--;
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Usage for %s is now %d\n", (const char *) hashkey, item->total_usage);
+			switch_limit_fire_event("hash", realm, resource, item->total_usage, item->rate_usage, 0, 0);
 
 			switch_core_hash_delete(pvt->hash, hashkey);
 
@@ -332,7 +345,7 @@ SWITCH_LIMIT_USAGE(limit_usage_hash)
 
 	switch_thread_rwlock_rdlock(globals.limit_hash_rwlock);
 
-	hash_key = switch_mprintf("%s_%s", realm, resource);
+	hash_key = switch_mprintf("%s%c%s", realm, LIMIT_HASH_SEP, resource);
 	remote_usage = get_remote_usage(hash_key);
 
 	count = remote_usage.total_usage;
@@ -361,7 +374,7 @@ SWITCH_LIMIT_INTERVAL_RESET(limit_interval_reset_hash)
 
 	switch_thread_rwlock_rdlock(globals.limit_hash_rwlock);
 
-	hash_key = switch_mprintf("%s_%s", realm, resource);
+	hash_key = switch_mprintf("%s%c%s", realm, LIMIT_HASH_SEP, resource);
 	if ((item = switch_core_hash_find(globals.limit_hash, hash_key))) {
 		item->rate_usage = 0;
 		item->last_check = switch_epoch_time_now(NULL);
@@ -420,7 +433,7 @@ SWITCH_STANDARD_APP(hash_function)
 		goto usage;
 	}
 
-	hash_key = switch_mprintf("%s_%s", argv[1], argv[2]);
+	hash_key = switch_mprintf("%s%c%s", argv[1], LIMIT_HASH_SEP, argv[2]);
 
 	if (!strcasecmp(argv[0], "insert")) {
 		if (argc < 4) {
@@ -488,7 +501,7 @@ SWITCH_STANDARD_API(hash_api_function)
 		goto usage;
 	}
 
-	hash_key = switch_mprintf("%s_%s", argv[1], argv[2]);
+	hash_key = switch_mprintf("%s%c%s", argv[1], LIMIT_HASH_SEP, argv[2]);
 
 	if (!strcasecmp(argv[0], "insert")) {
 		if (argc < 4) {

@@ -290,7 +290,6 @@ SWITCH_STANDARD_APP(clear_digit_action_function)
 	}
 
 	realm = switch_core_session_strdup(session, data);
-
 	if ((target_str = strchr(realm, ','))) {
 		*target_str++ = '\0';
 		target = str2target(target_str);
@@ -4810,10 +4809,14 @@ SWITCH_STANDARD_APP(limit_function)
 
 	if (switch_limit_incr(backend, session, realm, id, max, interval) != SWITCH_STATUS_SUCCESS) {
 		/* Limit exceeded */
-		if (*xfer_exten == '!') {
-			switch_channel_hangup(channel, switch_channel_str2cause(xfer_exten + 1));
+		if (*xfer_exten == '@') {
+			switch_channel_set_variable(channel,"is_limit_out","yes");
 		} else {
-			switch_ivr_session_transfer(session, xfer_exten, argv[5], argv[6]);
+			if (*xfer_exten == '!') {
+				switch_channel_hangup(channel, switch_channel_str2cause(xfer_exten + 1));
+			} else {
+				switch_ivr_session_transfer(session, xfer_exten, argv[5], argv[6]);
+			}
 		}
 	}
 }

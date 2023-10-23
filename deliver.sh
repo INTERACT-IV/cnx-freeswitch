@@ -1,5 +1,5 @@
 build_dir="rpmbuild/RPMS/x86_64"
-# Liste des nom de packages séparés par des espaces
+# Liste des noms de packages séparés par des espaces : Tous les packages doivent être livrés sur un même serveur et éventuellement dans des repos différents
 pkg_names="cnx-freeswitch cnx-freeswitch-logger-graylog2 cnx-freeswitch-event-snmp cnx-freeswitch-application-translate cnx-freeswitch-application-distributor cnx-freeswitch-application-hash cnx-freeswitch-lua"
 
 USAGE="Usage : deliver.sh [PKG_FILE_NAME]
@@ -23,19 +23,20 @@ if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
     exit 2
 fi
 
+repos_to_sync=""
 
 # Le fichier deliver.conf, stocké dans le répertoire de l'utilisateur contient une ligne taguée DELIVERY avec par exemple:
 # DELIVERY vs-ics-prd-sas-fr-502 iv-vocal-server;iv-vocal-server-applib;pnum;
 # Cette ligne indique sur quel serveur doivent être délivrés quels packages
-for pkg_name in ${pkg_names}; do
-	delivery_server=$(grep "DELIVERY.*${pkg_name};" ~/deliver.conf | awk '{print $2}')
-	if [[ "$delivery_server" == "" ]]; then
-		echo "Pas de serveur trouvé pour la livraison du package ${pkg_name}"
-		echo "Voici le contenu de ~/deliver.conf :"
-		cat ~/deliver.conf
-		exit 1
-	fi
+delivery_server=$(grep "DELIVERY.*${pkg_name};" ~/deliver.conf | awk '{print $2}')
+if [[ "$delivery_server" == "" ]]; then
+	echo "Pas de serveur trouvé pour la livraison du package ${pkg_name}"
+	echo "Voici le contenu de ~/deliver.conf :"
+	cat ~/deliver.conf
+	exit 1
+fi
 
+for pkg_name in ${pkg_names}; do
 
 	# A partir de la liste des rpm présents dans le répertoire de build on trouve le rpm avec le numéro de version le plus élevé
 	# awk retire les noms de paquets contenant le nom du paquet choisi
@@ -83,6 +84,16 @@ for pkg_name in ${pkg_names}; do
 	ssh delivery@$delivery_server "sudo cp $rpm_architecture/$last_rpm_file $channel_dir"
 	ssh delivery@$delivery_server "sudo rpm --addsign $channel_dir/$last_rpm_file"
 	ssh delivery@$delivery_server "sudo createrepo $channel_dir"
-	ssh delivery@$delivery_server "sudo /usr/bin/spacewalk-repo-sync --channel $delivery_channel"
 
+	if [[ "$(echo $repos_to_sync | grep $delivery_channel)" == "" ]]; then
+		repos_to_sync="$delivery_channel $repos_to_sync"
+	fi
+
+done
+
+#
+# On synchronise les dépôts modifiés à la fin
+#
+for repo in $repos_to_sync; do
+	ssh delivery@$delivery_server "sudo /usr/bin/spacewalk-repo-sync --channel $delivery_channel"
 done

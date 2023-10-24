@@ -1,6 +1,6 @@
 Name:		cnx-freeswitch
 Version:	1.10.10.1
-Release:	1%{?dist}
+Release:	7%{?dist}
 Summary:	Freeswitch 1.10.10 pour CNX
 License:	MPL 1.1
 Requires: curl >= 7.19
@@ -26,6 +26,7 @@ Requires: net-snmp
 %define GITDIR		%{_topdir}/..
 %define LOGDIR		/var/log/freeswitch
 %define RUNDIR		/var/run/freeswitch
+%define STATEDIR	/var/lib/freeswitch
 
 %description
 Freeswitch 1.10.10 patché pour Connectics
@@ -60,6 +61,10 @@ Summary:	FreeSWITCH mod_distributor
 Group:          System/Libraries
 Requires:       %{name} = %{version}-%{release}
 
+%description application-distributor
+Provides FreeSWITCH mod_distributor, a simple round-robin style distribution
+to call gateways.
+
 %package application-hash
 Summary:	FreeSWITCH mod_hash
 Group:          System/Libraries
@@ -74,28 +79,42 @@ Summary:	Lua support for the FreeSWITCH open source telephony platform
 Group:		System/Libraries
 Requires:	%{name} = %{version}-%{release}
 
-%description	lua
+%description lua
+Provides FreeSWITCH mod_lua.
 
-%description application-distributor
-Provides FreeSWITCH mod_distributor, a simple round-robin style distribution
-to call gateways.
+%package config-minimal
+Summary:        Minimial config for the FreeSWITCH Open Source telephone platform.
+Group:          System/Libraries
+Requires:	%{name} = %{version}-%{release}
+
+%description config-minimal
+Minimial config for the FreeSWITCH Open Source telephone platform.
+
 %install
 %{__mkdir} -p %{buildroot}%{BINDIR}
 %{__mkdir} -p %{buildroot}%{MODINSTDIR}
-%{__mkdir} -p %{buildroot}%{DATADIR}/scripts %{buildroot}%{DATADIR}/certs
-%{__mkdir} -p %{buildroot}%{SYSCONFDIR}
+%{__mkdir} -p %{buildroot}%{DATADIR}/scripts %{buildroot}%{DATADIR}/certs %{buildroot}%{DATADIR}/sounds %{buildroot}%{DATADIR}/htdocs %{buildroot}%{DATADIR}/fonts %{buildroot}%{DATADIR}/grammar
+%{__mkdir} -p %{buildroot}%{SYSCONFDIR}/tls %{buildroot}%{SYSCONFDIR}/autoload_configs %{buildroot}%{SYSCONFDIR}/dialplan/public %{buildroot}%{SYSCONFDIR}/sip_profiles/external
 %{__mkdir} -p %{buildroot}%{LOGDIR}
 %{__mkdir} -p %{buildroot}%{RUNDIR}
+%{__mkdir} -p %{buildroot}%{STATEDIR}/db %{buildroot}%{STATEDIR}/cache %{buildroot}%{STATEDIR}/images %{buildroot}%{STATEDIR}/recordings %{buildroot}%{STATEDIR}/storage
 
 #
 # Exécutables
 #
-%{__install} -D -m 755 %{GITDIR}/freeswitch %{buildroot}%{BINDIR}/freeswitch
+%{__install} -D -m 755 %{GITDIR}/.libs/freeswitch %{buildroot}%{BINDIR}/freeswitch
 %{__install} -D -m 755 %{GITDIR}/fs_cli %{buildroot}%{BINDIR}/fs_cli
 %{__install} -D -m 755 %{GITDIR}/fs_ivrd %{buildroot}%{BINDIR}/fs_ivrd
 %{__install} -D -m 755 %{GITDIR}/fs_encode %{buildroot}%{BINDIR}/fs_encode
 %{__install} -D -m 755 %{GITDIR}/tone2wav %{buildroot}%{BINDIR}/tone2wav
 %{__install} -D -m 755 %{GITDIR}/scripts/gentls_cert %{buildroot}%{BINDIR}/gentsl_cert
+#
+# Librairies
+#
+%{__install} -D -m 755 %{GITDIR}/.libs/libfreeswitch.so.1.0.0 %{buildroot}%{LIBDIR}/libfreeswitch.so.1.0.0
+%{__cp} -P %{GITDIR}/.libs/libfreeswitch.so.1 %{buildroot}%{LIBDIR}/libfreeswitch.so.1
+%{__cp} -P %{GITDIR}/.libs/libfreeswitch.so %{buildroot}%{LIBDIR}/libfreeswitch.so
+
 #
 # Fichiers systemd
 #
@@ -133,10 +152,58 @@ to call gateways.
 
 %{__install} -m 664 %{GITDIR}/src/mod/languages/mod_lua/.libs/mod_lua.so -t %{buildroot}%{MODINSTDIR}
 
+#
+# Config minimale
+#
+
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/acl.conf.xml 		%{buildroot}%{SYSCONFDIR}/autoload_configs/acl.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/cdr_csv.conf.xml 	%{buildroot}%{SYSCONFDIR}/autoload_configs/cdr_csv.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/conference.conf.xml %{buildroot}%{SYSCONFDIR}/autoload_configs/conference.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/console.conf.xml 	%{buildroot}%{SYSCONFDIR}/autoload_configs/console.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/db.conf.xml 		%{buildroot}%{SYSCONFDIR}/autoload_configs/db.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/event_socket.conf.xml %{buildroot}%{SYSCONFDIR}/autoload_configs/event_socket.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/logfile.conf.xml 	%{buildroot}%{SYSCONFDIR}/autoload_configs/logfile.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/modules.conf.xml 	%{buildroot}%{SYSCONFDIR}/autoload_configs/modules.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/sofia.conf.xml 		%{buildroot}%{SYSCONFDIR}/autoload_configs/sofia.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/switch.conf.xml 	%{buildroot}%{SYSCONFDIR}/autoload_configs/switch.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/xml_rpc.conf.xml 	%{buildroot}%{SYSCONFDIR}/autoload_configs/xml_rpc.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/autoload_configs/timezones.conf.xml 	%{buildroot}%{SYSCONFDIR}/autoload_configs/timezones.conf.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/dialplan/default.xml 				%{buildroot}%{SYSCONFDIR}/dialplan/default.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/dialplan/public.xml 					%{buildroot}%{SYSCONFDIR}/dialplan/public.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/dialplan/public/00_stub.xml 			%{buildroot}%{SYSCONFDIR}/dialplan/public/00_stub.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/freeswitch.xml 						%{buildroot}%{SYSCONFDIR}/freeswitch.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/sip_profiles/external.xml 			%{buildroot}%{SYSCONFDIR}/sip_profiles/
+%{__install} -m 640 %{GITDIR}/conf/minimal/sip_profiles/external/stub.xml 		%{buildroot}%{SYSCONFDIR}/sip_profiles/external/stub.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/sip_profiles/internal.xml 			%{buildroot}%{SYSCONFDIR}/sip_profiles/internal.xml
+%{__install} -m 640 %{GITDIR}/conf/minimal/vars.xml 							%{buildroot}%{SYSCONFDIR}/vars.xml
+
+%files config-minimal
+
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/acl.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/cdr_csv.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/conference.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/console.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/db.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/event_socket.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/logfile.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/modules.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/sofia.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/switch.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/xml_rpc.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/autoload_configs/timezones.conf.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/dialplan/default.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/dialplan/public.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/dialplan/public/00_stub.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/freeswitch.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/sip_profiles/external.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/sip_profiles/external/stub.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/sip_profiles/internal.xml
+%config(noreplace) %attr(0640, freeswitch, daemon) %{SYSCONFDIR}/vars.xml
+
 
 %pre 
 if ! /usr/bin/id freeswitch &>/dev/null; then
-       /usr/sbin/useradd -r -g daemon -s /bin/false -c "The FreeSWITCH Open Source Voice Platform" -d %{LOCALSTATEDIR} freeswitch || \
+       /usr/sbin/useradd -r -g daemon -s /bin/false -c "The FreeSWITCH Open Source Voice Platform" -d %{STATEDIR} freeswitch || \
                 %logmsg "Unexpected error adding user \"freeswitch\". Aborting installation."
 fi
 
@@ -169,6 +236,9 @@ fi
 %{BINDIR}/fs_encode
 %{BINDIR}/gentsl_cert
 %{BINDIR}/tone2wav
+%{LIBDIR}/libfreeswitch.so.1.0.0
+%{LIBDIR}/libfreeswitch.so.1
+%{LIBDIR}/libfreeswitch.so
 
 %{_unitdir}/freeswitch.service
 %{_tmpfilesdir}/freeswitch.conf

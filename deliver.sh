@@ -1,7 +1,6 @@
 build_dir="rpmbuild/RPMS/x86_64"
 # Liste des noms de packages séparés par des espaces : Tous les packages doivent être livrés sur un même serveur et éventuellement dans des repos différents
-pkg_names="cnx-freeswitch cnx-freeswitch-logger-graylog2 cnx-freeswitch-event-snmp cnx-freeswitch-application-translate cnx-freeswitch-application-distributor cnx-freeswitch-application-hash cnx-freeswitch-lua"
-
+pkg_names="cnx-freeswitch cnx-freeswitch-logger-graylog2 cnx-freeswitch-event-snmp cnx-freeswitch-application-translate cnx-freeswitch-application-distributor cnx-freeswitch-application-hash cnx-freeswitch-lua cnx-freeswitch-config-minimal"
 USAGE="Usage : deliver.sh [PKG_FILE_NAME]
 	PKG_FILE_NAME : Nom du fichier RPM à délivrer
 	Ce script ira chercher la dernière version des packages  $pkg_names dans le répertoire de build : $build_dir (sauf sous el5)

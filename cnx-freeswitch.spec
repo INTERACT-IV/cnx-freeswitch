@@ -1,6 +1,6 @@
 Name:		cnx-freeswitch
 Version:	1.10.10.1
-Release:	7%{?dist}
+Release:	9%{?dist}
 Summary:	Freeswitch 1.10.10 pour CNX
 License:	MPL 1.1
 Requires: curl >= 7.19

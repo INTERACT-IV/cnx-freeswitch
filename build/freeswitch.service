@@ -1,21 +1,36 @@
 [Unit]
-Description=FreeSWITCH
-After=syslog.target network.target
-After=postgresql.service postgresql-9.3.service postgresql-9.4.service mysqld.service httpd.service
+Description=freeswitch
+Wants=network-online.target
+Requires=network.target local-fs.target
+After=network.target network-online.target local-fs.target
 
 [Service]
-# You can use Type=notify only if you compile FreeSWITCH with --enable-systemd configure option
-# In this case you have to run FreeSWITCH in foreground mode (-nf option)!
-#Type=notify
-#NotifyAccess=main
-User=freeswitch
+; service
+Type=forking
+PIDFile=/run/freeswitch/freeswitch.pid
+Environment="DAEMON_OPTS=-nonat"
+Environment="USER=freeswitch"
+Environment="GROUP=daemon"
 EnvironmentFile=-/etc/sysconfig/freeswitch
-# RuntimeDirectory is not yet supported in CentOS 7. A workaround is to use /etc/tmpfiles.d/freeswitch.conf
-#RuntimeDirectory=/run/freeswitch
-#RuntimeDirectoryMode=0750
-WorkingDirectory=/run/freeswitch
-ExecStart=/usr/bin/freeswitch -nc -nf $FREESWITCH_PARAMS
-ExecReload=/usr/bin/kill -HUP $MAINPID
+ExecStartPre=/bin/chown -R ${USER}:${GROUP} /var/lib/freeswitch /var/log/freeswitch /etc/freeswitch /usr/share/freeswitch /var/run/freeswitch
+ExecStart=/usr/bin/freeswitch -u ${USER} -g ${GROUP} -ncwait ${DAEMON_OPTS}
+TimeoutSec=45s
+Restart=always
+; exec
+;User=${USER}
+;Group=${GROUP}
+LimitCORE=infinity
+LimitNOFILE=100000
+LimitNPROC=60000
+LimitSTACK=250000
+LimitRTPRIO=infinity
+LimitRTTIME=infinity
+IOSchedulingClass=realtime
+IOSchedulingPriority=2
+CPUSchedulingPolicy=rr
+CPUSchedulingPriority=89
+UMask=0007
+NoNewPrivileges=false
 
 [Install]
 WantedBy=multi-user.target

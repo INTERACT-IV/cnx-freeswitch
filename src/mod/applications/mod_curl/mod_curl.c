@@ -181,6 +181,18 @@ static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *stream)
 	return ncur;
 }
 
+static size_t readfile_curl_cb(void *buffer, size_t size, size_t nmemb, void *file_handle){
+	switch_size_t read=0;
+	switch_status_t status = SWITCH_STATUS_FALSE;
+	read = nmemb;
+	status = switch_file_read((switch_file_t *)file_handle, buffer, &read);
+	if(status != SWITCH_STATUS_SUCCESS){
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "curl putf: Error reading file\n");
+		return CURL_READFUNC_ABORT;
+	}
+	return read;
+}
+
 static http_data_t *do_lookup_url(switch_memory_pool_t *pool, const char *url, const char *method, const char *data, const char *content_type, char *append_headers[], curl_options_t *options)
 {
 	switch_CURL *curl_handle = NULL;
@@ -188,6 +200,8 @@ static http_data_t *do_lookup_url(switch_memory_pool_t *pool, const char *url, c
 	http_data_t *http_data = NULL;
 	switch_curl_slist_t *headers = NULL;
 	struct data_stream dstream = { NULL };
+	switch_file_t *file_handle = NULL;
+	switch_CURLcode res;
 
 	assert(options);
 
@@ -289,6 +303,29 @@ static http_data_t *do_lookup_url(switch_memory_pool_t *pool, const char *url, c
 			switch_safe_free(ct);
 		}
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "PUT data: %s\n", data);
+	} else if (!strcasecmp(method, "putf")) {
+		switch_file_t *file_handle;
+		switch_size_t size;
+		switch_status_t retval = switch_file_open(&file_handle, data, SWITCH_FOPEN_READ, SWITCH_FPROT_UREAD,pool);
+		if(retval != SWITCH_STATUS_SUCCESS)
+		{
+			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "curl putf: Unable to open file %s\n", data);
+			switch_safe_free(http_data->stream.data);
+			return http_data;
+		}
+		size = switch_file_get_size(file_handle);
+		
+		switch_curl_easy_setopt(curl_handle, CURLOPT_UPLOAD, 1);
+		switch_curl_easy_setopt(curl_handle, CURLOPT_READDATA, file_handle);
+		switch_curl_easy_setopt(curl_handle, CURLOPT_READFUNCTION, readfile_curl_cb);
+		switch_curl_easy_setopt(curl_handle, CURLOPT_INFILESIZE_LARGE, (curl_off_t)size);
+		if (content_type) {
+			char *ct = switch_mprintf("Content-Type: %s", content_type);
+			headers = switch_curl_slist_append(headers, ct);
+			headers = switch_curl_slist_append(headers, "Expect:");
+			switch_safe_free(ct);
+		}
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "PUT file: %s\n", data);
 	} else {
 		switch_curl_easy_setopt(curl_handle, CURLOPT_HTTPGET, 1);
 	}
@@ -308,19 +345,19 @@ static http_data_t *do_lookup_url(switch_memory_pool_t *pool, const char *url, c
 	switch_curl_easy_setopt(curl_handle, CURLOPT_HEADERDATA, (void *) http_data);
 	switch_curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "freeswitch-curl/1.0");
 
-	switch_curl_easy_perform(curl_handle);
+	res = switch_curl_easy_perform(curl_handle);
 	switch_curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &httpRes);
 	switch_curl_easy_cleanup(curl_handle);
 	switch_curl_slist_free_all(headers);
-
 	if (http_data->stream.data && !zstr((char *) http_data->stream.data) && strcmp(" ", http_data->stream.data)) {
-
 		http_data->http_response = switch_core_strdup(pool, http_data->stream.data);
 	}
-
 	http_data->http_response_code = httpRes;
-
+	if(file_handle!=NULL) switch_file_close(file_handle);
 	switch_safe_free(http_data->stream.data);
+	if(res != 0){
+		http_data->http_response_code = res;		
+	}
 	return http_data;
 }
 
@@ -433,7 +470,7 @@ static void http_sendfile_initialize_curl(http_sendfile_data_t *http_data)
 			switch_curl_easy_setopt(http_data->curl_handle, CURLOPT_CAINFO, http_data->cacert);
 		} else {
 			http_data->cacert = NULL;
-			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "Not verifying TLS cert for %s; connection is not secure\n", http_data->url);
+			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Not verifying TLS cert for %s; connection is not secure\n", http_data->url);
 			curl_easy_setopt(http_data->curl_handle, CURLOPT_SSL_VERIFYPEER, 0);
 			curl_easy_setopt(http_data->curl_handle, CURLOPT_SSL_VERIFYHOST, 0);
 		}
@@ -771,6 +808,7 @@ SWITCH_STANDARD_API(http_sendfile_function)
 
 	// stream->write_function(stream,"\ncmd is %s\nmydata is %s\n", cmd, http_data->mydata);
 
+
 	if ((argc = switch_separate_string(http_data->mydata, ' ', argv, (sizeof(argv) / sizeof(argv[0])))))
 	{
 		uint8_t i = 0;
@@ -1033,6 +1071,11 @@ SWITCH_STANDARD_API(curl_function)
 				} else {
 					postdata = "";
 				}
+			} else if (!strcasecmp("postf", argv[i]) || !strcasecmp("putf", argv[i])) {
+				method = argv[i];
+				if (++i < argc) {
+					postdata = argv[i];
+				}
 			} else if (!strcasecmp("content-type", argv[i])) {
 				if (++i < argc) {
 					content_type = switch_core_strdup(pool, argv[i]);
@@ -1074,6 +1117,14 @@ SWITCH_STANDARD_API(curl_function)
 		}
 
 		http_data = do_lookup_url(pool, url, method, postdata, content_type, append_headers, &options);
+		if(http_data->http_response_code == 200)
+			stream->write_function(stream, "+200 Ok\n");
+		else{
+			stream->write_function(stream, "-%d Err\n", http_data->http_response_code);
+			if(http_data->http_response_code < 200){
+				stream->write_function(stream,"%s\n",switch_curl_easy_strerror(http_data->http_response_code));
+			}
+		}
 		if (do_json) {
 			stream->write_function(stream, "%s", print_json(pool, http_data));
 		} else {

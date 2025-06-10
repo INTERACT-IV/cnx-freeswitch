@@ -1,0 +1,15 @@
+{
+    "configurations": [
+        {
+            "name": "Remote GCC",
+            "intelliSenseMode": "linux-gcc-x64",
+            "compilerPath": "/usr/bin/gcc",
+            "includePath": [
+                "${workspaceFolder}"
+            ],
+            "cStandard": "c11",
+            "cppStandard": "c++14"
+        }
+    ],
+    "version": 4
+}

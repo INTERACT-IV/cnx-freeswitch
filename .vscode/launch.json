@@ -1,0 +1,35 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "GDB Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/.libs/freeswitch",
+            "args": [
+                "-np", 
+                "-log", "/opt/data/fsw_dev/log", 
+                "-run", "/opt/data/fsw_dev/run", 
+                "-conf", "/opt/data/fsw_dev/conf/",
+                "-db", "/opt/data/fsw_dev/db", 
+                "-mod", "/opt/data/fsw_dev/mod", 
+                "-scripts", "/opt/data/fsw_dev/cnx-fsw-modules/scripts/",
+                "-nonat", "-nonatmap"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "externalConsole": false,
+            "internalConsoleOptions": "neverOpen",
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for GDB",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "Compile"
+        }
+    ]
+}

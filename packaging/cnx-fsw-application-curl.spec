@@ -1,7 +1,7 @@
 Name:           cnx-fsw-application-curl
-Version:        1.10.12
+Version:        2.0
 Release:        2%{?dist}
-Summary:        mod_curl up to date for FreeSWITCH 1.10.6
+Summary:        mod_curl up to date
 
 %define         company   connectics
 %define         _package_ %{name}-%{version}
@@ -9,6 +9,8 @@ Summary:        mod_curl up to date for FreeSWITCH 1.10.6
 Group:          System/Libraries
 License:        Proprietary
 URL:            http://github.com/INTERACT-IV/cnx-api-proxy
+
+Requires:	freeswitch = 1.10.6
 
 %description
 Provide FreeSWITCH dialplan access to CURL

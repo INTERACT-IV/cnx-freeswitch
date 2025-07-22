@@ -1,6 +1,6 @@
 Name:           cnx-fsw-application-curl
 Version:        2.0
-Release:        2%{?dist}
+Release:        %{_iv_pkg_release}%{?dist}
 Summary:        mod_curl up to date
 
 %define         company   connectics

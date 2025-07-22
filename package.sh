@@ -1,4 +1,4 @@
-PACKAGES=cnx-fsw-application-curl
+PACKAGES=cnx-fsw-application-curl,
 
 USAGE="""Usage : package.sh [PACKAGE_NAME [VERSION]]
 	Construit le(s) package(s) rpm : $PACKAGES
@@ -11,11 +11,11 @@ USAGE="""Usage : package.sh [PACKAGE_NAME [VERSION]]
 """
 [[ "$1" == "--help" ]] && echo -e "$USAGE" && exit 0
 [[ "$1" != "" ]] && PACKAGES=$1  # On réécrit la liste des packages à construire avec seulement le package donné en paramètre
-[[ "$(grep , <(echo $PACKAGES))" != "" ]] && tag_pack=${package_name}-    # On détecte s'il y a plusieurs packages à construire, dans ce cas on préfixera le nom des tags
 arg_version=$2
 
 for package in `echo $PACKAGES | sed 's/,/ /g'`;
 do
+[[ "$(grep , <(echo $PACKAGES))" != "" ]] && tag_pack=${package}-    # On détecte s'il y a plusieurs packages à construire, dans ce cas on préfixera le nom des tags
 
 if [[ "$arg_version" == "" ]]; then  # Si la version n'a pas été précisée en paramètre, c'est qu'on veut créer une nouveau package avec le commit courant
 	rm -Rf "./rpmbuild"

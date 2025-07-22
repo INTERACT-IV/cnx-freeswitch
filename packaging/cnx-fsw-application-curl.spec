@@ -10,7 +10,7 @@ Group:          System/Libraries
 License:        Proprietary
 URL:            http://github.com/INTERACT-IV/cnx-api-proxy
 
-Requires:	freeswitch = 1.10.6
+Requires:	freeswitch = 1:1.10.6
 
 %description
 Provide FreeSWITCH dialplan access to CURL

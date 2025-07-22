@@ -50,7 +50,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_curl_load);
  */
 SWITCH_MODULE_DEFINITION(mod_curl, mod_curl_load, mod_curl_shutdown, NULL);
 
-static char *SYNTAX = "curl url [headers|json|content-type <mime-type>|connect-timeout <seconds>|timeout <seconds>|append_headers <header_name:header_value>[|append_headers <header_name:header_value>]|insecure|secure|[proxy <http://proxy:port>]] [get|head|post|delete|put [data]]";
+static char *SYNTAX = "curl url [headers|json|content-type <mime-type>|connect-timeout <seconds>|timeout <seconds>|append_headers <header_name:header_value>[|append_headers <header_name:header_value>]|insecure|secure|[proxy <http://proxy:port>]] [get|head|post|delete|put [data]]|[getf|putf filename]";
 
 #define HTTP_SENDFILE_ACK_EVENT "curl_sendfile::ack"
 #define HTTP_SENDFILE_RESPONSE_SIZE 32768
@@ -193,6 +193,17 @@ static size_t readfile_curl_cb(void *buffer, size_t size, size_t nmemb, void *fi
 	return read;
 }
 
+static size_t writefile_curl_cb(void *buffer, size_t size, size_t nmemb, void *file_handle){
+	switch_size_t written=0;
+	switch_status_t status = SWITCH_STATUS_FALSE;
+	written = nmemb;
+	status = switch_file_write((switch_file_t *)file_handle, buffer, &written);
+	if(status != SWITCH_STATUS_SUCCESS){
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "curl getf: Error writing file\n");
+		return 0;
+	}
+	return written;
+}
 static http_data_t *do_lookup_url(switch_memory_pool_t *pool, const char *url, const char *method, const char *data, const char *content_type, char *append_headers[], curl_options_t *options)
 {
 	switch_CURL *curl_handle = NULL;
@@ -326,7 +337,7 @@ static http_data_t *do_lookup_url(switch_memory_pool_t *pool, const char *url, c
 			switch_safe_free(ct);
 		}
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "PUT file: %s\n", data);
-	} else {
+	} else { // get et getf
 		switch_curl_easy_setopt(curl_handle, CURLOPT_HTTPGET, 1);
 	}
 
@@ -339,8 +350,23 @@ static http_data_t *do_lookup_url(switch_memory_pool_t *pool, const char *url, c
 	switch_curl_easy_setopt(curl_handle, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
 	switch_curl_easy_setopt(curl_handle, CURLOPT_URL, url);
 	switch_curl_easy_setopt(curl_handle, CURLOPT_NOSIGNAL, 1);
-	switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, file_callback);
-	switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *) http_data);
+ 	if(!strcasecmp(method, "getf")) {
+		switch_file_t *file_handle;
+		switch_status_t retval = switch_file_open(&file_handle, data, SWITCH_FOPEN_WRITE | SWITCH_FOPEN_TRUNCATE | SWITCH_FOPEN_CREATE, SWITCH_FPROT_OS_DEFAULT, pool);
+		if(retval != SWITCH_STATUS_SUCCESS)
+		{
+			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "curl getf: Unable to open file %s\n", data);
+			switch_safe_free(http_data->stream.data);
+			return http_data;
+		}
+		switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, writefile_curl_cb);
+		switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, file_handle);
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "GET file: %s\n", data);
+	}
+	else{
+		switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, file_callback);
+		switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *) http_data);
+	}
 	switch_curl_easy_setopt(curl_handle, CURLOPT_HEADERFUNCTION, header_callback);
 	switch_curl_easy_setopt(curl_handle, CURLOPT_HEADERDATA, (void *) http_data);
 	switch_curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "freeswitch-curl/1.0");
@@ -1071,10 +1097,10 @@ SWITCH_STANDARD_API(curl_function)
 				} else {
 					postdata = "";
 				}
-			} else if (!strcasecmp("postf", argv[i]) || !strcasecmp("putf", argv[i])) {
+			} else if (!strcasecmp("postf", argv[i]) || !strcasecmp("putf", argv[i]) || !strcasecmp("getf", argv[i])) {
 				method = argv[i];
 				if (++i < argc) {
-					postdata = argv[i];
+					postdata = argv[i];		// On met le nom du fichier dans postdata (qui est mal nommé pour ça)
 				}
 			} else if (!strcasecmp("content-type", argv[i])) {
 				if (++i < argc) {

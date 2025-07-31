@@ -256,7 +256,6 @@ static http_data_t *do_lookup_url(switch_memory_pool_t *pool, const char *url, c
 		} else {
 			http_data->cacert = NULL;
 			if (options->insecure) {
-				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "Not verifying TLS cert for %s; connection is not secure\n", url);
 				switch_curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, 0);
 				switch_curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 0);
 			} else {

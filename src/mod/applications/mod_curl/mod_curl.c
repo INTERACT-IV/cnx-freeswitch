@@ -151,7 +151,7 @@ static size_t file_callback(void *ptr, size_t size, size_t nmemb, void *data)
 	http_data->bytes += realsize;
 
 	if (http_data->bytes > http_data->max_bytes) {
-		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Oversized file detected [%d bytes]\n", (int) http_data->bytes);
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Oversized file detected [%d bytes] max is %d\n", (int) http_data->bytes, (int) http_data->max_bytes);
 		http_data->err = 1;
 		return 0;
 	}

@@ -1189,12 +1189,14 @@ SWITCH_STANDARD_API(curl_function)
 		}
 
 		http_data = do_lookup_url(pool, url, method, postdata, content_type, append_headers, &options);
-		if(http_data->http_response_code == 200)
-			stream->write_function(stream, "+200 Ok\n");
-		else{
-			stream->write_function(stream, "-%d Err\n", http_data->http_response_code);
-			if(http_data->http_response_code < 200){
-				stream->write_function(stream,"%s\n",switch_curl_easy_strerror(http_data->http_response_code));
+		if (!strcasecmp("postf", method) || !strcasecmp("getf", method) || !strcasecmp("putf", method)){
+			if(http_data->http_response_code == 200)
+				stream->write_function(stream, "+200 Ok\n");
+			else{
+				stream->write_function(stream, "-%d Err\n", http_data->http_response_code);
+				if(http_data->http_response_code < 200){
+					stream->write_function(stream,"%s\n",switch_curl_easy_strerror(http_data->http_response_code));
+				}
 			}
 		}
 		if (do_json) {

@@ -1092,6 +1092,7 @@ SWITCH_STANDARD_API(curl_function)
 	int i = 0;
 	char *append_headers[HTTP_MAX_APPEND_HEADERS + 1] = { 0 };
 	int ah_index = 0;
+	int do_ret = 0;
 
 	switch_memory_pool_t *pool = NULL;
 	curl_options_t options = { .insecure = !globals.validate_certs };
@@ -1130,12 +1131,14 @@ SWITCH_STANDARD_API(curl_function)
 					postdata = "";
 				}
 			} else if (!strcasecmp("putf", argv[i]) || !strcasecmp("getf", argv[i])) {
+				do_ret=1;
 				method = switch_core_strdup(pool, argv[i]);
 				if (++i < argc) {
 					postdata = switch_core_strdup(pool, argv[i]);		// On met le nom du fichier dans postdata (qui est mal nommé pour ça)
 				}
 			} 
 			else if (!strcasecmp("postf", argv[i])) { // Pour postf, on utilise une structure déidée pour passer 2 arguments en un à do_lookup
+				do_ret=1;
 				method = switch_core_strdup(pool, argv[i]);
 				postf_params = switch_core_alloc(pool, sizeof(postf_params_t));
 				postf_params->data = NULL;
@@ -1189,7 +1192,7 @@ SWITCH_STANDARD_API(curl_function)
 		}
 
 		http_data = do_lookup_url(pool, url, method, postdata, content_type, append_headers, &options);
-		if (!strcasecmp("postf", method) || !strcasecmp("getf", method) || !strcasecmp("putf", method)){
+		if (do_ret == 1){
 			if(http_data->http_response_code == 200)
 				stream->write_function(stream, "+200 Ok\n");
 			else{

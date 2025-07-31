@@ -1,0 +1,1 @@
+.libs/freeswitch -np -log /opt/data/fsw_dev/log -run /opt/data/fsw_dev/run -conf /opt/data/fsw_dev/conf/ -db /opt/data/fsw_dev/db -mod /opt/data/fsw_dev/mod -scripts /opt/data/fsw_dev/cnx-fsw-modules/scripts/ -nonat -nonatmap

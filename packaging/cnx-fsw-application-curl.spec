@@ -1,5 +1,5 @@
 Name:           cnx-fsw-application-curl
-Version:        2.2
+Version:        2.3
 Release:        %{_iv_pkg_release}%{?dist}
 Summary:        mod_curl up to date
 

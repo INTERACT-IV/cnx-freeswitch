@@ -50,7 +50,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_curl_load);
  */
 SWITCH_MODULE_DEFINITION(mod_curl, mod_curl_load, mod_curl_shutdown, NULL);
 
-static char *SYNTAX = "curl url [headers|json|content-type <mime-type>|connect-timeout <seconds>|timeout <seconds>|append_headers <header_name:header_value>[|append_headers <header_name:header_value>]|insecure|secure|[proxy <http://proxy:port>]] [get|head|post|delete|put [data]]|[getf|putf filename]";
+static char *SYNTAX = "curl url [headers|json|content-type <mime-type>|connect-timeout <seconds>|timeout <seconds>|append_headers <header_name:header_value>[|append_headers <header_name:header_value>]|insecure|secure|[proxy <http://proxy:port>]] [get|head|post|delete|put [data]]|[getf|putf filename]|[postf data [filename]]";
 
 #define HTTP_SENDFILE_ACK_EVENT "curl_sendfile::ack"
 #define HTTP_SENDFILE_RESPONSE_SIZE 32768
@@ -70,6 +70,11 @@ static switch_xml_config_item_t instructions[] = {
 	SWITCH_CONFIG_ITEM("validate-certs", SWITCH_CONFIG_BOOL, CONFIG_RELOADABLE, &globals.validate_certs, SWITCH_FALSE, NULL, NULL, NULL),
 	SWITCH_CONFIG_ITEM_END()
 };
+
+typedef struct {
+	char *filename;
+	char *data;
+} postf_params_t;
 
 typedef enum {
 	CSO_NONE = (1 << 0),
@@ -212,6 +217,7 @@ static http_data_t *do_lookup_url(switch_memory_pool_t *pool, const char *url, c
 	switch_curl_slist_t *headers = NULL;
 	struct data_stream dstream = { NULL };
 	switch_file_t *file_handle = NULL;
+	postf_params_t *postf_params = NULL;
 	switch_CURLcode res;
 
 	assert(options);
@@ -280,6 +286,17 @@ static http_data_t *do_lookup_url(switch_memory_pool_t *pool, const char *url, c
 			switch_safe_free(ct);
 		}
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Post data: %s\n", data);
+	} else if (!strcasecmp(method, "postf")) {
+		// Pour postf, data est de type postf_params_t pour contenir 2 données : ce qu'il faut envoyé et le nom du fichier où stocker la réponse
+		postf_params = (postf_params_t *)data;
+		switch_curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDSIZE, strlen(postf_params->data));
+		switch_curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, (void *) postf_params->data);
+		if (content_type) {
+			char *ct = switch_mprintf("Content-Type: %s", content_type);
+			headers = switch_curl_slist_append(headers, ct);
+			switch_safe_free(ct);
+		}
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Post data: %s\n", postf_params->data);
 	} else if (!strcasecmp(method, "patch")) {
 		switch_curl_easy_setopt(curl_handle, CURLOPT_CUSTOMREQUEST, "PATCH");
 		switch_curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDSIZE, strlen(data));
@@ -362,7 +379,21 @@ static http_data_t *do_lookup_url(switch_memory_pool_t *pool, const char *url, c
 		switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, writefile_curl_cb);
 		switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, file_handle);
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "GET file: %s\n", data);
+	} else if(!strcasecmp(method, "postf")) {
+		// la structure postf_params est remplie précédement
+		switch_file_t *file_handle;
+		switch_status_t retval = switch_file_open(&file_handle, postf_params->filename, SWITCH_FOPEN_WRITE | SWITCH_FOPEN_TRUNCATE | SWITCH_FOPEN_CREATE, SWITCH_FPROT_OS_DEFAULT, pool);
+		if(retval != SWITCH_STATUS_SUCCESS)
+		{
+			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "curl postf: Unable to open file %s\n", postf_params->filename);
+			switch_safe_free(http_data->stream.data);
+			return http_data;
+		}
+		switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, writefile_curl_cb);
+		switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, file_handle);
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "POSTF response file: %s\n", postf_params->filename);
 	}
+
 	else{
 		switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, file_callback);
 		switch_curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *) http_data);
@@ -930,7 +961,7 @@ SWITCH_STANDARD_APP(curl_app_function)
 {
 	switch_status_t status = SWITCH_STATUS_SUCCESS;
 
-	char *argv[10] = { 0 };
+	char *argv[30] = { 0 };
 	int argc;
 	char *mydata = NULL;
 
@@ -1046,12 +1077,13 @@ SWITCH_STANDARD_APP(curl_app_function)
 SWITCH_STANDARD_API(curl_function)
 {
 	switch_status_t status;
-	char *argv[10] = { 0 };
+	char *argv[30] = { 0 };
 	int argc;
 	char *mydata = NULL;
 	char *url = NULL;
 	char *method = NULL;
 	char *postdata = "";
+	postf_params_t *postf_params;
 	char *content_type = NULL;
 	switch_bool_t do_headers = SWITCH_FALSE;
 	switch_bool_t do_json = SWITCH_FALSE;
@@ -1090,19 +1122,33 @@ SWITCH_STANDARD_API(curl_function)
 			} else if (!strcasecmp("get", argv[i]) || !strcasecmp("head", argv[i])) {
 				method = switch_core_strdup(pool, argv[i]);
 			} else if (!strcasecmp("post", argv[i]) || !strcasecmp("patch", argv[i]) || !strcasecmp("put", argv[i]) || !strcasecmp("delete", argv[i])) {
-				method = argv[i];
+				method = switch_core_strdup(pool, argv[i]);
 				if (++i < argc) {
 					postdata = switch_core_strdup(pool, argv[i]);
 					switch_url_decode(postdata);
 				} else {
 					postdata = "";
 				}
-			} else if (!strcasecmp("postf", argv[i]) || !strcasecmp("putf", argv[i]) || !strcasecmp("getf", argv[i])) {
-				method = argv[i];
+			} else if (!strcasecmp("putf", argv[i]) || !strcasecmp("getf", argv[i])) {
+				method = switch_core_strdup(pool, argv[i]);
 				if (++i < argc) {
-					postdata = argv[i];		// On met le nom du fichier dans postdata (qui est mal nommé pour ça)
+					postdata = switch_core_strdup(pool, argv[i]);		// On met le nom du fichier dans postdata (qui est mal nommé pour ça)
 				}
-			} else if (!strcasecmp("content-type", argv[i])) {
+			} 
+			else if (!strcasecmp("postf", argv[i])) { // Pour postf, on utilise une structure déidée pour passer 2 arguments en un à do_lookup
+				method = switch_core_strdup(pool, argv[i]);
+				postf_params = switch_core_alloc(pool, sizeof(postf_params_t));
+				postf_params->data = NULL;
+				postf_params->filename = NULL;
+				if (++i < argc) {
+					postf_params->data = switch_core_strdup(pool, argv[i]);
+					if (++i < argc) {
+						postf_params->filename = switch_core_strdup(pool, argv[i]);
+					}
+				}
+				postdata = (char *)postf_params;
+			} 
+			else if (!strcasecmp("content-type", argv[i])) {
 				if (++i < argc) {
 					content_type = switch_core_strdup(pool, argv[i]);
 				}

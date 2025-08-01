@@ -50,7 +50,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_curl_load);
  */
 SWITCH_MODULE_DEFINITION(mod_curl, mod_curl_load, mod_curl_shutdown, NULL);
 
-static char *SYNTAX = "curl url [headers|json|content-type <mime-type>|connect-timeout <seconds>|timeout <seconds>|append_headers <header_name:header_value>[|append_headers <header_name:header_value>]|insecure|secure|[proxy <http://proxy:port>]] [get|head|post|delete|put [data]]|[getf|putf filename]|[postf data [filename]]";
+static char *SYNTAX = "curl url [headers|json|content-type <mime-type>|connect-timeout <seconds>|timeout <seconds>|append_headers <header_name:header_value>[|append_headers <header_name:header_value>]|insecure|secure|[proxy <http://proxy:port>]] [get|head|post|delete|put [data]]|[getf|putf filename]|[postf data filename]";
 
 #define HTTP_SENDFILE_ACK_EVENT "curl_sendfile::ack"
 #define HTTP_SENDFILE_RESPONSE_SIZE 32768
@@ -1091,7 +1091,6 @@ SWITCH_STANDARD_API(curl_function)
 	int i = 0;
 	char *append_headers[HTTP_MAX_APPEND_HEADERS + 1] = { 0 };
 	int ah_index = 0;
-	int do_ret = 0;
 
 	switch_memory_pool_t *pool = NULL;
 	curl_options_t options = { .insecure = !globals.validate_certs };
@@ -1130,24 +1129,21 @@ SWITCH_STANDARD_API(curl_function)
 					postdata = "";
 				}
 			} else if (!strcasecmp("putf", argv[i]) || !strcasecmp("getf", argv[i])) {
-				do_ret=1;
 				method = switch_core_strdup(pool, argv[i]);
 				if (++i < argc) {
 					postdata = switch_core_strdup(pool, argv[i]);		// On met le nom du fichier dans postdata (qui est mal nommé pour ça)
 				}
 			} 
 			else if (!strcasecmp("postf", argv[i])) { // Pour postf, on utilise une structure déidée pour passer 2 arguments en un à do_lookup
-				do_ret=1;
 				method = switch_core_strdup(pool, argv[i]);
 				postf_params = switch_core_alloc(pool, sizeof(postf_params_t));
 				postf_params->data = NULL;
 				postf_params->filename = NULL;
-				if (++i < argc) {
-					postf_params->data = switch_core_strdup(pool, argv[i]);
-					if (++i < argc) {
-						postf_params->filename = switch_core_strdup(pool, argv[i]);
-					}
+				if(i+2 >= argc){
+					switch_goto_status(SWITCH_STATUS_SUCCESS, usage);
 				}
+				postf_params->data = switch_core_strdup(pool, argv[++i]);
+				postf_params->filename = switch_core_strdup(pool, argv[++i]);
 				postdata = (char *)postf_params;
 			} 
 			else if (!strcasecmp("content-type", argv[i])) {
@@ -1191,16 +1187,6 @@ SWITCH_STANDARD_API(curl_function)
 		}
 
 		http_data = do_lookup_url(pool, url, method, postdata, content_type, append_headers, &options);
-		if (do_ret == 1){
-			if(http_data->http_response_code == 200)
-				stream->write_function(stream, "+200 Ok\n");
-			else{
-				stream->write_function(stream, "-%d Err\n", http_data->http_response_code);
-				if(http_data->http_response_code < 200){
-					stream->write_function(stream,"%s\n",switch_curl_easy_strerror(http_data->http_response_code));
-				}
-			}
-		}
 		if (do_json) {
 			stream->write_function(stream, "%s", print_json(pool, http_data));
 		} else {
